@@ -1,0 +1,56 @@
+version: "3.3"
+   
+services:
+  db:
+    image: postgres
+    volumes:
+      - ./data/db:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_NAME=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+  web:
+    build: .
+    command: >
+      bash -c "python manage.py makemigrations
+      && python manage.py migrate
+      && python manage.py runserver 0.0.0.0:8000"
+    volumes:
+      - .:/code
+    ports:
+      - "8000:8000"
+    environment:
+      - DJANGO_ALLOWED_HOSTS=localhost 127.0.0.1 [::1]
+      - POSTGRES_NAME=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    links:
+      - rabbitmq
+    depends_on:
+      - db
+      - rabbitmq
+  celery:
+    build: .
+    command: celery -A hello_again worker -B -l info
+    volumes:
+      - .:/usr/src/app
+    environment:
+      - DJANGO_ALLOWED_HOSTS=localhost 127.0.0.1 [::1]
+      - POSTGRES_NAME=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - CELERY_BROKER=amqp://admin:admin@rabbitmq:5672//
+      - CELERY_BACKEND=amqp://admin:admin@rabbitmq:5672//
+      - CELERY_RESULT_BACKEND=db+postgresql://postgres:postgres@db:5432/postgres
+    links:
+      - rabbitmq
+    depends_on: 
+      - web
+      - rabbitmq
+  rabbitmq:
+    image: rabbitmq
+    container_name: 'rabbitmq'
+    environment:
+      - RABBITMQ_DEFAULT_USER=admin
+      - RABBITMQ_DEFAULT_PASS=admin
+
